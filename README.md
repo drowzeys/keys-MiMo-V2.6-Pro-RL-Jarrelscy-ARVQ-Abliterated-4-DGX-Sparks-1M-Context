@@ -60,7 +60,9 @@ The Spark image is at:
 
 `ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v1`
 
-It is Jarrelscy's fork compiled for GB10 (`sm_121a`), plus the Python fixes in [`serve/image/`](serve/image/). Those fixes were bind-mounted on the first successful serve and are now inside this tag. The image does not contain the weights. Pull it on each Spark, then run `serve/launch-rank.sh` with `IMAGE` set to that tag.
+Digest `sha256:83c6bdd58e4d99521b2e4f2060225a34678b46fa8d069d1adcea9d4389fefe9e`.
+
+It is Jarrelscy's fork compiled for GB10 (`sm_121a`), plus the Python fixes in [`serve/image/`](serve/image/). Those fixes were bind-mounted on the first successful serve and are now inside this tag. The image does not contain the weights. The package is private on push. Make it public once at [package settings](https://github.com/users/drowzeys/packages/container/package/mimo-v26-pro-arvq-spark/settings), or pull it with `gh auth token` while it stays private. Then run `serve/launch-rank.sh` with `IMAGE` set to that tag.
 
 ## Bring-up
 
