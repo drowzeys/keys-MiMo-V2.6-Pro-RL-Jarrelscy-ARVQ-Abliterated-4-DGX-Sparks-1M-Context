@@ -87,7 +87,7 @@ NCCL on this cluster used the 200G RoCE NIC (`NCCL_NET=IB`), not the TCP path on
 
 ## Reserved
 
-- **[DFlash](DFLASH.md)** — weights are already in the checkpoint (`dflash/`). Spark test is in progress. No speed number yet.
+- **[DFlash](DFLASH.md)** — measured. 13.0 tok/s single-stream prose, 22.5 tok/s at four requests. Slower than MTP=2. Not the champion.
 - **[Abliteration](ABLITERATION.md)** — not applied to this Pro checkpoint. No refusal score is claimed here.
 
 ## License
