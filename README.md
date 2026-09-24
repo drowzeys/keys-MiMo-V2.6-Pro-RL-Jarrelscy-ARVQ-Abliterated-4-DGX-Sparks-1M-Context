@@ -54,9 +54,17 @@ Same prompt, requests actually overlapped (`max_num_seqs 4`):
 
 MTP=2 is the single-stream champion. MTP=1 is faster when four requests run together. A short prompt with one draft token, measured earlier on the eager server, was 24.5 tok/s. The 33K numbers above are the loaded figure.
 
+## Image
+
+The Spark image is at:
+
+`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v1`
+
+It is Jarrelscy's fork compiled for GB10 (`sm_121a`), plus the Python fixes in [`serve/image/`](serve/image/). Those fixes were bind-mounted on the first successful serve and are now inside this tag. The image does not contain the weights. Pull it on each Spark, then run `serve/launch-rank.sh` with `IMAGE` set to that tag.
+
 ## Bring-up
 
-Build Jarrelscy's fork for the Spark (the image used here was compiled for `sm_121a` from that `sm120` tree). Put the checkpoint on storage the four ranks can read. Then, on each node:
+Put the checkpoint on storage the four ranks can read. Then, on each node:
 
 ```bash
 # rank 0 is the API. ranks 1–3 are headless.
@@ -65,7 +73,7 @@ export LM_ONLY=1
 export MAXLEN=1048576
 export SEQS=4
 export SPEC='{"method":"mtp","num_speculative_tokens":2}'
-export IMAGE=mimo26-arvq-spark:63430f7-sm121-v1
+export IMAGE=ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v1
 export MASTER_ADDR=10.0.0.1   # rank 0
 export HOSTPATH=/path/to/MiMo-V2.6-Pro-RL-ARVQ-hybrid-63430f7
 export GID_INDEX=3            # confirm with show_gids; one node in this cluster needed 7
