@@ -1,13 +1,15 @@
-# MiMo-V2.6-Pro-RL — Jarrelscy ARVQ hybrid on 4 DGX Sparks, 1M context
+# keys-MiMo-V2.6-Pro-RL Jarrelscy ARVQ Abliterated — 4 DGX Sparks, 1M context
 
-Serving recipe for **[XiaomiMiMo/MiMo-V2.6-Pro-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL)** after **[Jarrelscy](https://huggingface.co/jarrelscy)**'s ARVQ / NVFP4 hybrid quantization, on **four NVIDIA DGX Spark (GB10)** nodes, tensor-parallel 4, **1,048,576-token context**.
+Serving recipe for the **abliterated** [Jarrelscy ARVQ / NVFP4 hybrid](https://huggingface.co/jarrelscy/MiMo-V2.6-Pro-RL-ARVQ-hybrid) of **[XiaomiMiMo/MiMo-V2.6-Pro-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL)** on **four NVIDIA DGX Spark (GB10)** nodes, tensor-parallel 4, **1,048,576-token context**.
 
-This repository does not redistribute the weights or Jarrelscy's runtime. It records the Spark bring-up, the champion draft setting, tool-calling integration, and the current experimental results.
+Gated weights (automatic approval after terms): **[drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated](https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated)**.
+
+The launcher enables MiMo tool calling on the server (`--enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo`). Hermes then **executes** those calls (`write_file`, `terminal`, `execute_code`, `read_file`, …) so a prompt can write a project, run it, and iterate. See [HERMES.md](HERMES.md) and [`serve/verify-tools-and-build.sh`](serve/verify-tools-and-build.sh).
 
 ## Current status — 2026-09-25 UTC
 
 - **Serving:** live on four Sparks with 1M context, MTP=2, four sequences, eager execution, BF16 KV, and GPU memory fraction 0.85.
-- **[Hermes and tool calling](HERMES.md):** fixed and verified. Nonstream and streamed tool calls, a tool-result round trip, and an actual Hermes `read_file` call passed. The gateway was restarted with the corrected model routes.
+- **[Hermes and tool calling](HERMES.md):** server parsers on; Hermes `hermes-cli` / `hermes-telegram` execute `write_file`, `terminal`, `execute_code`. A prompt can scaffold a file, run it, and return the program output. `tool_use_enforcement: true` so the model calls tools instead of describing them.
 - **[Abliteration](ABLITERATION.md):** live `dealign-op` tree. Thinking **off** **32/32** refusal and **22/22** cyber; thinking **on** 25/32 and 16/22 (visible content). Gated HF: [drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated](https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated).
 - **[DFlash](DFLASH.md):** measured and slower than MTP=2. MTP=2 remains the serving choice.
 - **Vision:** the live serve is text-only. The separate Hermes vision endpoint was offline at verification.
@@ -23,7 +25,8 @@ The quantization is Jarrelscy's. Official MiMo-V2.6-Pro images read the source M
 | ARVQ / NVFP4 hybrid checkpoint | Jarrelscy | [jarrelscy/MiMo-V2.6-Pro-RL-ARVQ-hybrid](https://huggingface.co/jarrelscy/MiMo-V2.6-Pro-RL-ARVQ-hybrid) @ `63430f7b9c1b13f4bfca9e3bc3969ec0115d1a88` |
 | vLLM fork that loads `nvfp4_arvq_hybrid` | Jarrelscy | [jarrelscy/vllm-mimo-v26-arvq-sm120](https://github.com/jarrelscy/vllm-mimo-v26-arvq-sm120) @ `88c94233120247f275ec94baf21638321a930469` |
 | Base model | Xiaomi MiMo | [XiaomiMiMo/MiMo-V2.6-Pro-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL) |
-| Four-Spark serve, MTP measurement, Spark port notes | Keys | this repo |
+| Abliterated ARVQ weights | Keys | [drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated](https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated) |
+| Four-Spark serve, MTP measurement, Spark port notes, tool/build loop | Keys | this repo |
 
 Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. The numbers below are a serving measurement on GB10 (SM121), not a quality claim.
 
@@ -42,7 +45,8 @@ Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. Th
 | Modalities | `--language-model-only` so the startup profile does not spend the KV budget on a video |
 | Draft | `--speculative-config '{"method":"mtp","num_speculative_tokens":2}'` |
 | Served name | `MiMo-V2.6-Pro-ARVQ` |
-| Tool calls | `--enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo` |
+| Tool calls | `--enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo` (required; without these Hermes `tool_choice: auto` is HTTP 400) |
+| Checkpoint | abliterated tree `…-ablit-dealign-op` / gated HF repo above |
 
 Measured KV pool on the champion boot: **2,248,773 tokens**. Weights about **73.2 GiB per rank**.
 
@@ -88,7 +92,8 @@ export SEQS=4
 export SPEC='{"method":"mtp","num_speculative_tokens":2}'
 export IMAGE=ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v1
 export MASTER_ADDR=10.0.0.1   # rank 0
-export HOSTPATH=/path/to/MiMo-V2.6-Pro-RL-ARVQ-hybrid-63430f7
+export HOSTPATH=/path/to/MiMo-V2.6-Pro-RL-ARVQ-hybrid-ablit-dealign-op
+# or: hf download drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated --local-dir "$HOSTPATH"
 export GID_INDEX=3            # confirm with show_gids; one node in this cluster needed 7
 
 bash serve/launch-rank.sh "$HEAD_IP" "$RANK" "$GID_INDEX" "$HOSTPATH" headless
@@ -100,9 +105,23 @@ NCCL on this cluster used the 200G RoCE NIC (`NCCL_NET=IB`), not the TCP path on
 
 ## Integration and experiments
 
-- **[Hermes](HERMES.md)** — tool parser flags, endpoint settings, and successful integration checks.
+- **[Hermes](HERMES.md)** — parsers, Hermes execution, and build-from-prompt (`write_file` + `terminal`).
 - **[DFlash](DFLASH.md)** — measured. 13.0 tok/s single-stream prose, 22.5 tok/s at four requests. Slower than MTP=2. Not the champion.
-- **[Abliteration](ABLITERATION.md)** — existing local results and their limits. The current experimental variant records 11/32 on the refusal suite; no 32/32 result is claimed.
+- **[Abliteration](ABLITERATION.md)** — live dealign-op: thinking-off 32/32 · 22/22; thinking-on 25/32 · 16/22.
+
+## Build from a prompt
+
+After the four ranks are up and Hermes points at `http://<rank-0>:8888/v1` model `MiMo-V2.6-Pro-ARVQ`:
+
+```bash
+# server + Hermes execution (write a file, run it, check output)
+bash serve/verify-tools-and-build.sh http://127.0.0.1:8888/v1
+
+# or a free-form build:
+hermes chat -q "Create /tmp/demo/app.py that prints hello and run it. Use write_file then terminal." --oneshot --yolo
+```
+
+The model must emit tool calls. Hermes runs them on the host (`terminal.backend: local`). Do not leave `tool_use_enforcement` off for this checkpoint — MiMo otherwise narrates the build instead of calling tools.
 
 ## License
 

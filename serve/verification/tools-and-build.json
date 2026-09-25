@@ -1,0 +1,29 @@
+{
+  "api": "http://10.100.10.1:8888/v1",
+  "model": "MiMo-V2.6-Pro-ARVQ",
+  "ts": "2026-09-25T15:12:39Z",
+  "health": true,
+  "nonstream_tool_call": {
+    "name": "add_integers",
+    "arguments": {
+      "a": 19,
+      "b": 23
+    },
+    "finish": "tool_calls"
+  },
+  "tool_result_roundtrip": {
+    "assistant": "The sum of 19 and 23 is 42.",
+    "ok": true
+  },
+  "hermes": {
+    "returncode": 0,
+    "stdout_tail": " tool to run: \npython3 /tmp/mimo-ablit-build-demo/hello.py . Reply with only the program \nstdout.\nInitializing agent...\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n  \u250a \u270d\ufe0f preparing write_file\u2026\n  \u250a \ud83d\udcbb preparing terminal\u2026\n  \u250a \u270d\ufe0f  write     /tmp/mimo-ablit-build-demo/hello.py  0.1s\n  \u250a review diff\na//tmp/mimo-ablit-build-demo/hello.py \u2192 b//tmp/mimo-ablit-build-demo/hello.py\n@@ -0,0 +1 @@\n+print(42)\n  \u250a \ud83d\udcbb $         python3 /tmp/mimo-ablit-build-demo/hello.py  0.1s\n\n\u256d\u2500 \u2624 Hermes \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n42\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\nResume this session with:\n  hermes --resume 20260925_111242_353eef\n\nSession:        20260925_111242_353eef\nDuration:       2m 14s\nMessages:       5 (1 user, 3 tool calls)\n",
+    "stderr_tail": ""
+  },
+  "build": {
+    "file_exists": true,
+    "file_text": "print(42)",
+    "run_stdout": "42\n",
+    "run_ok": true
+  }
+}
