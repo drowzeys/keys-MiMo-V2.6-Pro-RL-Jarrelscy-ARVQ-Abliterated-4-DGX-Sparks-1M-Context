@@ -74,6 +74,9 @@ exec docker run -d --name "$NAME" \
   /opt/arvq/entrypoint.sh \
   serve "$MODEL" \
   --served-model-name MiMo-V2.6-Pro-ARVQ \
+  --enable-auto-tool-choice \
+  --tool-call-parser mimo \
+  --reasoning-parser mimo \
   --host 0.0.0.0 --port "$PORT" \
   --trust-remote-code \
   --tensor-parallel-size 4 --pipeline-parallel-size 1 \

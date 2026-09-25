@@ -2,7 +2,17 @@
 
 Serving recipe for **[XiaomiMiMo/MiMo-V2.6-Pro-RL](https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-RL)** after **[Jarrelscy](https://huggingface.co/jarrelscy)**'s ARVQ / NVFP4 hybrid quantization, on **four NVIDIA DGX Spark (GB10)** nodes, tensor-parallel 4, **1,048,576-token context**.
 
-This repository does not redistribute the weights or Jarrelscy's runtime. It records the Spark bring-up that those weights made possible, the champion draft setting, and two slots that are not finished.
+This repository does not redistribute the weights or Jarrelscy's runtime. It records the Spark bring-up, the champion draft setting, tool-calling integration, and the current experimental results.
+
+## Current status — 2026-09-25 UTC
+
+- **Serving:** live on four Sparks with 1M context, MTP=2, four sequences, eager execution, BF16 KV, and GPU memory fraction 0.85.
+- **[Hermes and tool calling](HERMES.md):** fixed and verified. Nonstream and streamed tool calls, a tool-result round trip, and an actual Hermes `read_file` call passed. The gateway was restarted with the corrected model routes.
+- **[Abliteration](ABLITERATION.md):** experimental. The existing local variant records **11/32** on the refusal suite and **15/22** on the cyber suite using a heuristic classifier. The 32/32 target has not been reached; these suites were not rerun for the tool-call fix.
+- **[DFlash](DFLASH.md):** measured and slower than MTP=2. MTP=2 remains the serving choice.
+- **Vision:** the live serve is text-only. The separate Hermes vision endpoint was offline at verification.
+
+The [verification summary](serve/verification/2026-09-25-status.json) records the tool-call checks and the source hashes for the archived benchmark counts.
 
 ## Credit
 
@@ -32,6 +42,7 @@ Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. Th
 | Modalities | `--language-model-only` so the startup profile does not spend the KV budget on a video |
 | Draft | `--speculative-config '{"method":"mtp","num_speculative_tokens":2}'` |
 | Served name | `MiMo-V2.6-Pro-ARVQ` |
+| Tool calls | `--enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo` |
 
 Measured KV pool on the champion boot: **2,248,773 tokens**. Weights about **73.2 GiB per rank**.
 
@@ -87,10 +98,11 @@ bash serve/launch-rank.sh "$HEAD_IP" 0 "$GID_INDEX" "$HOSTPATH" api
 
 NCCL on this cluster used the 200G RoCE NIC (`NCCL_NET=IB`), not the TCP path on that same device. See [SPARK-PORT.md](SPARK-PORT.md) for the three loader fixes required before the first token.
 
-## Reserved
+## Integration and experiments
 
+- **[Hermes](HERMES.md)** — tool parser flags, endpoint settings, and successful integration checks.
 - **[DFlash](DFLASH.md)** — measured. 13.0 tok/s single-stream prose, 22.5 tok/s at four requests. Slower than MTP=2. Not the champion.
-- **[Abliteration](ABLITERATION.md)** — not applied to this Pro checkpoint. No refusal score is claimed here.
+- **[Abliteration](ABLITERATION.md)** — existing local results and their limits. The current experimental variant records 11/32 on the refusal suite; no 32/32 result is claimed.
 
 ## License
 

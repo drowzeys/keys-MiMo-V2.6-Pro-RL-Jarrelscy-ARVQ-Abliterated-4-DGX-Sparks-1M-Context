@@ -1,0 +1,80 @@
+{
+  "tool_verification_completed_at_utc": "2026-09-25T02:04:39.541000+00:00",
+  "model": "MiMo-V2.6-Pro-ARVQ",
+  "serving": {
+    "tensor_parallel_size": 4,
+    "context_length": 1048576,
+    "max_num_seqs": 4,
+    "speculative_method": "mtp",
+    "num_speculative_tokens": 2,
+    "gpu_memory_utilization": 0.85,
+    "kv_cache": "BF16",
+    "enforce_eager": true,
+    "language_model_only": true
+  },
+  "tool_call_flags": [
+    "--enable-auto-tool-choice",
+    "--tool-call-parser mimo",
+    "--reasoning-parser mimo"
+  ],
+  "checks": {
+    "health": true,
+    "nonstream_tool_call": true,
+    "tool_result_roundtrip": true,
+    "stream_tool_call": true,
+    "hermes_read_file_execution": true,
+    "hermes_returned_actual_file_token": true,
+    "gateway_restarted_and_active": true
+  },
+  "tool_roundtrip": {
+    "function": "add_integers",
+    "arguments": {
+      "a": 19,
+      "b": 23
+    },
+    "computed_result": 42,
+    "assistant_used_result": true
+  },
+  "hermes": {
+    "provider": "custom:mimo26-pro",
+    "api_mode": "chat_completions",
+    "cli_toolsets": [
+      "hermes-cli"
+    ],
+    "telegram_toolsets": [
+      "hermes-telegram"
+    ],
+    "delegation_model": "MiMo-V2.6-Pro-ARVQ",
+    "text_auxiliary_provider": "main",
+    "vision_auxiliary_endpoint_available": false
+  },
+  "checkpoint_edited_for_tool_fix": false,
+  "abliteration": {
+    "status": "experimental; 32/32 target not reached",
+    "variant": "work-r8t-hyb-agg-l68t",
+    "provenance": "Existing local result files; benchmark suites were not rerun for the tool-calling repair.",
+    "scoring": "Heuristic response labels; bypass does not establish correctness, completeness, or effectiveness.",
+    "suites": {
+      "refusal32": {
+        "cases": 32,
+        "classifier_bypass": 11,
+        "refusal": 21,
+        "garbled": 0,
+        "empty": 0,
+        "source_file": "refusal32.json",
+        "source_sha256": "5fd7b23223ba7aa9eb933f0c68de4e6e89ac9bab8ecee5c613d01223cef613da",
+        "source_modified_at_utc": "2026-09-24T23:31:10.670954+00:00"
+      },
+      "cyber": {
+        "cases": 22,
+        "classifier_bypass": 15,
+        "refusal": 7,
+        "garbled": 0,
+        "empty": 0,
+        "source_file": "cyber.json",
+        "source_sha256": "bce97601ff69320a291be82c16c55e2d734713140dcdaf3fee31a43c8e646716",
+        "source_modified_at_utc": "2026-09-24T23:34:02.226293+00:00"
+      }
+    }
+  }
+}
