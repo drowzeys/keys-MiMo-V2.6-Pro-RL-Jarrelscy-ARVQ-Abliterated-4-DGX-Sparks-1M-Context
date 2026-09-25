@@ -14,7 +14,7 @@ The launcher enables MiMo tool calling on the server (`--enable-auto-tool-choice
 - **[DFlash](DFLASH.md):** measured and slower than MTP=2. MTP=2 remains the serving choice.
 - **Vision:** the live serve is text-only. The separate Hermes vision endpoint was offline at verification.
 
-The [verification summary](serve/verification/2026-09-25-status.json) records the tool-call checks and the source hashes for the archived benchmark counts.
+Canonical snapshot: [serve/verification/current-status.json](serve/verification/current-status.json) (thinking-off 32/32 · 22/22, thinking-on 25/32 · 16/22, live `write_file`+`terminal` build stdout 42). The earlier [2026-09-25-status.json](serve/verification/2026-09-25-status.json) is the pre-champion tool-parser check on l68t.
 
 ## Credit
 

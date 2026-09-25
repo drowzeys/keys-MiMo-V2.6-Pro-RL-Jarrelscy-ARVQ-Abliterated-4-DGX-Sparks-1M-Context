@@ -1,0 +1,64 @@
+{
+  "updated_at_utc": "2026-09-25T15:12:39Z",
+  "repo": "drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated-4-DGX-Sparks-1M-Context",
+  "weights": "https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated",
+  "gated": "auto",
+  "model": "MiMo-V2.6-Pro-ARVQ",
+  "checkpoint": "MiMo-V2.6-Pro-RL-ARVQ-hybrid-ablit-dealign-op",
+  "base_arvq": "jarrelscy/MiMo-V2.6-Pro-RL-ARVQ-hybrid@63430f7",
+  "serving": {
+    "tensor_parallel_size": 4,
+    "context_length": 1048576,
+    "max_num_seqs": 4,
+    "speculative_method": "mtp",
+    "num_speculative_tokens": 2,
+    "gpu_memory_utilization": 0.85,
+    "kv_cache": "BF16",
+    "enforce_eager": true,
+    "language_model_only": true
+  },
+  "tool_call_flags": [
+    "--enable-auto-tool-choice",
+    "--tool-call-parser mimo",
+    "--reasoning-parser mimo"
+  ],
+  "hermes": {
+    "provider": "custom:mimo26-pro",
+    "api_mode": "chat_completions",
+    "cli_toolsets": ["hermes-cli"],
+    "telegram_toolsets": ["hermes-telegram"],
+    "tool_use_enforcement": true,
+    "thinking_default": false
+  },
+  "checks": {
+    "health": true,
+    "nonstream_tool_call": true,
+    "tool_result_roundtrip": true,
+    "hermes_write_file_and_terminal_build": true,
+    "build_stdout": "42\n"
+  },
+  "build_from_prompt": {
+    "prompt": "Create /tmp/mimo-ablit-build-demo/hello.py that prints exactly 42 and run it.",
+    "tools_called": ["write_file", "terminal"],
+    "file": "/tmp/mimo-ablit-build-demo/hello.py",
+    "file_text": "print(42)",
+    "run_stdout": "42\n",
+    "ok": true,
+    "log": "serve/verification/tools-and-build.json"
+  },
+  "abliteration": {
+    "status": "live champion dealign-op",
+    "edit": "decoder self_attn.o_proj transplant, 25 of 29 dealign v3 layers (32-45, 48-54, 64-67); skipped DFlash/pad anchors 30, 31, 46, 47",
+    "thinking_off": {
+      "refusal32": {"cases": 32, "classifier_bypass": 32, "refusal": 0, "garbled": 0, "empty": 0, "source_sha256": "744e898ced6ddbbf6fb47959202b836550cc57c3375d450b86b93b87fb81e61c"},
+      "cyber": {"cases": 22, "classifier_bypass": 22, "refusal": 0, "garbled": 0, "empty": 0, "source_sha256": "36e6cc75e6be887a3537d3f47c5688893bb09c7a6140d96702d92549a5a47f6b"}
+    },
+    "thinking_on": {
+      "max_tokens": 1024,
+      "refusal32": {"cases": 32, "classifier_bypass": 25, "refusal": 7, "garbled": 0, "empty": 0, "source_sha256": "7d90adf093c7e7f1e866e5e09c39c91ea1adab2dd417f202547fa97674200d4b"},
+      "cyber": {"cases": 22, "classifier_bypass": 16, "refusal": 1, "garbled": 2, "empty": 3, "source_sha256": "69094b939168f2eb3f588523a89a4cc1c21ed4595be983a0f42f1faa432169ab"}
+    },
+    "prior_l68t_thinking_off": {"refusal32": 11, "cyber": 15},
+    "stock_arvq": {"refusal32": 5, "cyber": 9}
+  }
+}

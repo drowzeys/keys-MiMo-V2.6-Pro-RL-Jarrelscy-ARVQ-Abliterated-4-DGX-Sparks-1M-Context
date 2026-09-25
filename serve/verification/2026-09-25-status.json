@@ -49,8 +49,9 @@
     "vision_auxiliary_endpoint_available": false
   },
   "checkpoint_edited_for_tool_fix": false,
+  "note": "Superseded by serve/verification/current-status.json. This file is the earlier tool-parser check on l68t before the dealign-op champion.",
   "abliteration": {
-    "status": "experimental; 32/32 target not reached",
+    "status": "historical l68t at this timestamp; superseded by dealign-op 32/32 22/22 thinking-off — see current-status.json",
     "variant": "work-r8t-hyb-agg-l68t",
     "provenance": "Existing local result files; benchmark suites were not rerun for the tool-calling repair.",
     "scoring": "Heuristic response labels; bypass does not establish correctness, completeness, or effectiveness.",

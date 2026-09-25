@@ -15,12 +15,12 @@ The live serve is `MiMo-V2.6-Pro-ARVQ` with decoder `o_proj` transplanted from [
 
 Thinking-off and thinking-on are the same weights. Choose per request with `chat_template_kwargs.enable_thinking`. A bypass label means the reply starts delivering the requested content. It does not certify correctness.
 
-The [verification summary](serve/verification/2026-09-25-status.json) still hashes the older l68t result files. New gate logs live under `~/mimo26-arvq-tp4/ablit/work-dealign/`.
+Canonical snapshot: [serve/verification/current-status.json](serve/verification/current-status.json). Gate logs on the lab host: `~/mimo26-arvq-tp4/ablit/work-dealign/`.
 
 ## Scope
 
-These results describe the local experimental Pro variant, not the untouched upstream checkpoint or MiMo-V2.6-Flash. They do not establish general model quality.
+These results describe this Abliterated Pro ARVQ tree, not stock Xiaomi MXFP4 or MiMo-V2.6-Flash. A bypass label does not certify correctness.
 
-The tool-calling repair changed the server launch flags and Hermes configuration without editing checkpoint weights. The four-node serve retains 1M context, MTP=2, four sequences, eager execution, BF16 KV, and GPU memory fraction **0.85**.
+The four-node serve retains 1M context, MTP=2, four sequences, eager execution, BF16 KV, GPU memory fraction **0.85**, and MiMo tool parsers. Hermes executes `write_file` / `terminal` / `execute_code` so a prompt can build and run code.
 
-This repository does not distribute the experimental weights. The launcher loads the checkpoint supplied through `HOSTPATH`; the published container image contains the runtime and loader fixes.
+**Weights:** gated Hugging Face repo [drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated](https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated) (automatic approval after terms). This GitHub repo is the Spark recipe and launcher; set `HOSTPATH` to that download (or the local `…-ablit-dealign-op` tree). The container image is runtime-only.

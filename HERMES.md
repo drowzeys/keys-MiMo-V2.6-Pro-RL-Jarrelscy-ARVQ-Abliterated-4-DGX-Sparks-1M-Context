@@ -88,6 +88,6 @@ The default model and delegation route use this Abliterated Pro checkpoint. Text
 | Build from prompt | 2026-09-25: Hermes `write_file` wrote `/tmp/mimo-ablit-build-demo/hello.py` (`print(42)`), `terminal` ran `python3` on it, stdout **42**. Three tool calls. |
 | Gateway | Restarted and active |
 
-Re-run `bash serve/verify-tools-and-build.sh` after a remount. Older [verification JSON](serve/verification/2026-09-25-status.json) covers the parser/round-trip checks; the build script is the live execute path.
+Re-run `bash serve/verify-tools-and-build.sh` after a remount. Canonical record: [current-status.json](serve/verification/current-status.json). Live execute log: [tools-and-build.json](serve/verification/tools-and-build.json).
 
 The MiMo serve uses `--language-model-only`. Hermes's separate vision endpoint was offline during verification, so image analysis was not verified. Server containers and the previous Hermes configuration were retained locally for rollback.

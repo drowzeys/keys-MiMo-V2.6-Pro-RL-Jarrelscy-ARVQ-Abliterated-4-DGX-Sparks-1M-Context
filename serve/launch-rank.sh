@@ -1,6 +1,10 @@
 #!/bin/bash
-# One rank of the four-Spark champion.
+# One rank of the four-Spark Abliterated champion.
 #   launch-rank.sh <this-node-ip> <rank 0-3> <roce-gid-index> <host-checkpoint-path> [api|headless]
+#
+# HOSTPATH should be the Abliterated tree (…-ablit-dealign-op) or the gated HF download
+# drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated.
+# Always passes --enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo.
 #
 # Champion environment:
 #   LM_ONLY=1 MAXLEN=1048576 SEQS=4 \
