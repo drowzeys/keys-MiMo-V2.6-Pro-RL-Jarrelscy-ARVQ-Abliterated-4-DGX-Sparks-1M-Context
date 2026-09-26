@@ -16,7 +16,7 @@ The checkpoint is the gated Abliterated tree. Thinking defaults **off** (`chat_t
 
 Together these meant Hermes saw a batch that looked complete, executed the partial list, and re-prompted. The model then restarted the enumeration.
 
-**Fix (image v2 and `serve/launch-rank.sh`):**
+**Fix (published image and `serve/launch-rank.sh`):**
 
 - `serving.py` keeps `finish_reason: "length"` when output was truncated, in both the streaming and non-streaming paths. Hermes then takes its "continue where you left off" path instead of executing a partial batch.
 - `--override-generation-config '{"max_new_tokens": 8192}'` raises the default cap. The HF repo's `generation_config.json` now also says 8192.

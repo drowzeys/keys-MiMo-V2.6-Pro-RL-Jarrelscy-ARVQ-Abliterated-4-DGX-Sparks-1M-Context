@@ -36,7 +36,7 @@ Expert parallelism is unsupported in this quant method. The serve is TP4 only. E
 
 The checkpoint ships three MTP heads (`model.mtp.layers.0-2`), one per draft step. Xiaomi's recommended SGLang deploy runs them as multi-layer EAGLE. The fork hardcoded `num_mtp_layers = 1` and skipped loading heads 1-2 without a warning, so every draft step re-ran head 0.
 
-Image v2 fixes this in three places:
+The published image fixes this in three places:
 
 - `mimo_v2_mtp.py` builds `n_predict` heads (`MIMO_MTP_LAYERS`, default 3 in the image). The count comes from `speculative_config.draft_model_config.hf_config`. Inside the drafter, `vllm_config.model_config` is the target's config, so reading it there silently yields 1.
 - `speculative.py` routes multi-layer MiMo MTP to the per-step proposer.
@@ -54,13 +54,13 @@ Heads 1-2 are weak on both trees. ARVQ quantization and the `o_proj` edits moved
 ## 7. Speed path (2026-09-26)
 
 - **CUDA graphs.** torch.compile with `FULL_AND_PIECEWISE` works on this fork. The ablit capture hooks in `mimo_v2.py` used to do a file `open()` per layer per forward. That meant 140 syscalls per step and a graph break. They are now gated once at import (`MIMO_ABLIT_CAPTURE=1` re-enables them).
-- **ARVQ prefill.** By default, prefill ran through the per-slot decode kernel, at 128 tok/s. `VLLM_ARVQ_GROUPED_PREFILL=1`, `_COMPACT_PREFILL=1` and `_SORT_NATIVE_PREFILL=1`, plus `--max-num-batched-tokens 5120`, give about 530 tok/s. 5120 is the largest chunk that stays under the grouped path's 1 GiB FP32 output bound. All four knobs are defaults in image v2.
+- **ARVQ prefill.** By default, prefill ran through the per-slot decode kernel, at 128 tok/s. `VLLM_ARVQ_GROUPED_PREFILL=1`, `_COMPACT_PREFILL=1` and `_SORT_NATIVE_PREFILL=1`, plus `--max-num-batched-tokens 5120`, give about 530 tok/s. 5120 is the largest chunk that stays under the grouped path's 1 GiB FP32 output bound. All four knobs are defaults in the image. The batched prefill in section 8 supersedes the grouped path.
 - **Sliding window** is working on the 60 SWA layers (window 128), in both the KV cache (only the 10 full-attention layers hold per-token KV) and the Triton DiffKV kernel.
 - **All-reduce** is PyNCCL over RoCE. It is about half of each decode pass. `NCCL_PROTO=Simple` changed nothing.
 
-## 8. Expert-batched ARVQ prefill (image v3, 2026-09-26)
+## 8. Expert-batched ARVQ prefill (2026-09-26)
 
-Profile of an 11K-token prefill on v2 (rank 0, 24.4 s of GPU time):
+Profile of an 11K-token prefill with the older grouped path (rank 0, 24.4 s of GPU time):
 - **Native `hybrid_kernel` on hot routes: 7.1 s.** It runs 4 FP4 activation planes.
 - **The grouped cold path: about 9.5 s.** It is a per-expert loop of about 43K dequant launches and 43K matmuls, and the CPU was launch-bound ("Command Buffer Full").
 - **NCCL all-reduce: 4.5 s.**
@@ -74,13 +74,13 @@ v3 adds `nvfp4_arvq_batched_prefill.py` and `grouped.cu`:
 
 Harness, per MoE layer on one TP4 rank:
 
-| Layer | Tokens | Native | v2 grouped | v3 batched |
+| Layer | Tokens | Native | Grouped (old) | Batched (now) |
 |---|---:|---:|---:|---:|
 | 30 (all cold) | 5120 | 489 ms | 90 ms | 18.2 ms |
 | 64 (291 cold, 93 hot) | 5120 | 623 ms | 147 ms | 18.9 ms |
 
 Accuracy of the batched path:
 - Cosine vs native is 0.9999996. Relative Frobenius error vs an FP32 reference is 1.709e-3, compared with 1.717e-3 for native, 1.735e-3 for grouped, and a 1.658e-3 bf16 floor.
-- Greedy outputs on the cluster drift from v2 at tokens 31-53. That matches run-to-run drift within one boot (tokens 53-58), which comes from FP32 atomics and NCCL.
+- Greedy outputs on the cluster drift from the grouped build at tokens 31-53. That matches run-to-run drift within one boot (tokens 53-58), which comes from FP32 atomics and NCCL.
 
 Cluster result: 9.5K-token prefill goes from 505 to 1,291 tok/s, and 38K-token from 527 to 1,038 tok/s. All-reduce is now the largest prefill cost.

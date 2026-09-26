@@ -34,7 +34,7 @@ Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. Th
 
 ## Champion
 
-**MTP = 2** draft tokens, selected for single-stream prose. The draft is the checkpoint's own MTP stack (`model.mtp.layers.0`, `.1`, `.2`). Image v2 loads **all three heads** and runs them non-chain, the way Xiaomi's SGLang deploy does. The published fork loaded one head and replayed it. See [SPARK-PORT.md §6](SPARK-PORT.md#6-all-three-mtp-heads-non-chain-2026-09-26).
+**MTP = 2** draft tokens, selected for single-stream prose. The draft is the checkpoint's own MTP stack (`model.mtp.layers.0`, `.1`, `.2`). The image loads **all three heads** and runs them non-chain, the way Xiaomi's SGLang deploy does. The published fork loaded one head and replayed it. See [SPARK-PORT.md §6](SPARK-PORT.md#6-all-three-mtp-heads-non-chain-2026-09-26).
 
 | | |
 |---|---|
@@ -73,7 +73,7 @@ Requests overlapped (`max_num_seqs 4`), MTP=2:
 
 Uncached prefill (nonce prompt, `max_tokens` 1):
 
-| Prompt | Eager, chunk 2048 | v2 (grouped prefill) | **v3 (batched prefill)** | Time to first token, v3 |
+| Prompt | Old eager recipe | Grouped prefill (superseded) | **Now: batched prefill** | Time to first token, now |
 |---:|---:|---:|---:|---:|
 | 9.5K tokens | 128 tok/s | 505 tok/s | **1,291 tok/s** | **7.4 s** |
 | 38K tokens | 126 tok/s | 527 tok/s | **1,038 tok/s** | **36.6 s** |
@@ -85,24 +85,19 @@ MTP acceptance per draft position (sampled prose): 0.63 / 0.19. Heads 1-2 lost a
 
 ## Image
 
-`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v3` (public, no login needed). `serve/launch-rank.sh` uses it by default.
+**`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:latest`**, which is the same image as `:63430f7-sm121-v3`. It is public and needs no login. This is the only published image: older tags were removed, so you can't pull a slower build by mistake. `serve/launch-rank.sh` pins `:63430f7-sm121-v3`.
 
 Digest `sha256:52cbb3b3b3bc902fa4bc5f4f59b5e82b660da9629d87ebc662add8319d4aca84`.
 
-v3 = v2 + **expert-batched ARVQ prefill** ([`serve/image/Dockerfile.v3`](serve/image/Dockerfile.v3), kernels built from [`grouped.cu`](serve/image/grouped.cu) at image build):
+The image contains:
 
-- Two CUDA kernels (gate/up and down) decode ARVQ codebook and NVFP4 weights in registers and run FP16 tensor-core GEMMs over token-sorted routes.
-- They replace a per-expert launch loop of about 43K launches per prefill.
-- Per MoE layer at 5120 tokens: 146.8 ms → 18.9 ms. Output cosine vs native is 0.9999996, with error slightly below the old grouped path.
+- **Jarrelscy's fork** compiled for GB10 (`sm_121a`), with the Spark loader fixes.
+- **All three MTP heads**, run non-chain.
+- **The tool-call loop fix.**
+- **CUDA-graph-clean abliteration hooks.**
+- **Expert-batched ARVQ prefill kernels** (`grouped.cu`, built during the image build). Per MoE layer at 5120 tokens they take 18.9 ms instead of 146.8 ms, with output cosine 0.9999996 vs native.
 
-v2 (`…-sm121-v2`, [`serve/image/Dockerfile`](serve/image/Dockerfile)) contains:
-
-- the Spark loader fixes
-- three-head non-chain MTP
-- the tool-loop `serving.py` fix
-- the torch.compile-clean ablit hooks
-
-The image does not contain the weights. v1 (eager, one MTP head, tool-loop bug) is superseded.
+The recipe is [`serve/image/Dockerfile`](serve/image/Dockerfile), on top of [`Dockerfile.base`](serve/image/Dockerfile.base). It reproduces the published image file-for-file: all 17 overlaid files and env defaults were checked. The image does not contain the weights.
 
 ## Bring-up
 

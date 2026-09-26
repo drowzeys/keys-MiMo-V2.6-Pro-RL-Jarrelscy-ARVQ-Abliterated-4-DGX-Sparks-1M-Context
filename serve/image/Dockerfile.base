@@ -1,0 +1,43 @@
+# ARVQ base: Jarrelscy vllm-mimo-v26-arvq-sm120 @ 88c9423 compiled for GB10 (sm_121a) on a local
+# GB10 vLLM build. Tag the result mimo26-arvq-base:63430f7-sm121. Most users should just pull
+# ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:latest instead of rebuilding.
+FROM vllm-node-tf5-glm52-b12x:probe-modded
+
+USER root
+WORKDIR /opt/arvq
+RUN uv venv --system-site-packages --python /usr/bin/python3 /opt/arvq/.venv \
+    && uv pip install --python /opt/arvq/.venv/bin/python pytest pytest-asyncio
+COPY runtime/vllm /opt/arvq/runtime/vllm
+COPY runtime/csrc/libtorch_stable /opt/arvq/runtime/csrc/libtorch_stable
+COPY runtime/tests /opt/arvq/runtime/tests
+COPY runtime/tools/mimo_arvq /opt/arvq/runtime/tools/mimo_arvq
+COPY runtime/pyproject.toml /opt/arvq/runtime/pyproject.toml
+COPY link-native.py /opt/arvq/link-native.py
+RUN /opt/arvq/.venv/bin/python /opt/arvq/link-native.py
+
+ARG B12X_REV=9043b448622764a598969518d413b3fd8b3c0c07
+RUN git init /tmp/arvq-b12x \
+    && git -C /tmp/arvq-b12x remote add origin https://github.com/local-inference-lab/b12x \
+    && git -C /tmp/arvq-b12x fetch --depth=1 origin ${B12X_REV} \
+    && git -C /tmp/arvq-b12x checkout --detach FETCH_HEAD \
+    && cp -a /tmp/arvq-b12x/b12x /opt/arvq/.venv/lib/python3.12/site-packages/b12x \
+    && cp /tmp/arvq-b12x/LICENSE /opt/arvq/B12X-LICENSE \
+    && rm -rf /tmp/arvq-b12x
+
+ENV ARVQ_CUDA_ARCH=121a \
+    ARVQ_PYTHON=/opt/arvq/.venv/bin/python \
+    PYTHONPATH=/opt/arvq/runtime \
+    VLLM_PLUGINS="" \
+    VLLM_DSA_FIXED_PERSISTENT_TOPK=1 \
+    TORCH_CUDA_ARCH_LIST=12.1a
+RUN for build in build.sh build_dense.sh build_prefill.sh build_prefill_pairs.sh build_prefill_wide.sh build_activation.sh build_topk.sh; do \
+      bash "/opt/arvq/runtime/vllm/model_executor/layers/quantization/arvq/$build" || exit; \
+    done
+RUN /opt/arvq/.venv/bin/python -c "from vllm.model_executor.layers.quantization.nvfp4_arvq_hybrid import NvFp4ArvqHybridConfig; from vllm.model_executor.models.mimo_v2 import MiMoV2ForCausalLM; print('MiMo ARVQ imports passed')"
+
+LABEL ai.mimo.model.revision="63430f7b9c1b13f4bfca9e3bc3969ec0115d1a88" \
+      ai.mimo.runtime.revision="88c94233120247f275ec94baf21638321a930469" \
+      ai.mimo.cuda.arch="121a"
+WORKDIR /opt/arvq/runtime
+ENTRYPOINT ["/opt/arvq/.venv/bin/python", "-m", "vllm.entrypoints.cli.main"]
+CMD ["--help"]
