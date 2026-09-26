@@ -1,0 +1,38 @@
+{"label": "eager-mtp2-b2048", "kind": "prose", "task": "prose_beekeeper", "tokens": 512, "ttft_s": 0.6429235429968685, "decode_tps": 13.200664538819586, "tokens_per_pass": 2.300900900900901}
+{"label": "eager-mtp2-b2048", "kind": "prose", "task": "prose_lighthouse", "tokens": 512, "ttft_s": 0.7157994930166751, "decode_tps": 12.750517630399333, "tokens_per_pass": 2.2582897033158815}
+{"label": "eager-mtp2-b2048", "kind": "prose", "task": "prose_nurse", "tokens": 512, "ttft_s": 0.6751463098917156, "decode_tps": 13.335197694152088, "tokens_per_pass": 2.286238532110092}
+{"label": "eager-mtp2-b2048", "kind": "prefill", "prompt_tokens": 9534, "ttft_s": 74.65211898006964, "pp_tps": 127.71238285339702}
+{"label": "eager-mtp2-b2048", "kind": "prefill", "prompt_tokens": 38042, "ttft_s": 297.9917796140071, "pp_tps": 127.66123968008894}
+{"label": "graphs-mtp2-b4096-noprefillfix", "kind": "prose", "task": "prose_beekeeper", "tokens": 512, "ttft_s": 0.43482265900820494, "decode_tps": 20.309466932398646, "tokens_per_pass": 1.7594501718213058}
+{"label": "graphs-mtp2-b4096-noprefillfix", "kind": "prose", "task": "prose_lighthouse", "tokens": 512, "ttft_s": 0.45856780000030994, "decode_tps": 20.566455509705204, "tokens_per_pass": 1.7804878048780488}
+{"label": "graphs-mtp2-b4096-noprefillfix", "kind": "prose", "task": "prose_nurse", "tokens": 512, "ttft_s": 0.3345167280640453, "decode_tps": 20.278846357159296, "tokens_per_pass": 1.7655172413793103}
+{"label": "graphs-mtp2-b4096-noprefillfix", "kind": "prefill", "prompt_tokens": 9535, "ttft_s": 74.73020045098383, "pp_tps": 127.59232468878612}
+{"label": "graphs-mtp2-b4096-noprefillfix", "kind": "prefill", "prompt_tokens": 38037, "ttft_s": 302.4211766649969, "pp_tps": 125.77492231020247}
+{"label": "graphs-b4096-GROUPED", "kind": "prefill", "prompt_tokens": 9537, "ttft_s": 38.44120198301971, "pp_tps": 248.09317888167737}
+{"label": "graphs-b4096-GROUPED", "kind": "prefill", "prompt_tokens": 38043, "ttft_s": 132.13766125403345, "pp_tps": 287.90429343881516}
+{"label": "graphs-b4096-GROUPED+COMPACT", "kind": "prefill", "prompt_tokens": 9536, "ttft_s": 29.76216642803047, "pp_tps": 320.40678298938775}
+{"label": "graphs-b4096-GROUPED+COMPACT", "kind": "prefill", "prompt_tokens": 38043, "ttft_s": 95.78780117095448, "pp_tps": 397.1591323210757}
+{"label": "graphs-b4096-GROUPED+COMPACT+SORT", "kind": "prefill", "prompt_tokens": 9537, "ttft_s": 26.34627512691077, "pp_tps": 361.98665481401054}
+{"label": "graphs-b4096-GROUPED+COMPACT+SORT", "kind": "prefill", "prompt_tokens": 38037, "ttft_s": 81.94314788107295, "pp_tps": 464.18768357794204}
+{"label": "graphs-mtp3x3layers-b5120-prefillall", "kind": "prose", "task": "prose_beekeeper", "tokens": 512, "ttft_s": 0.44947587396018207, "decode_tps": 17.56401499516227, "tokens_per_pass": 1.7380952380952381}
+{"label": "graphs-mtp3x3layers-b5120-prefillall", "kind": "prose", "task": "prose_lighthouse", "tokens": 512, "ttft_s": 0.5134807410649955, "decode_tps": 18.79154359788905, "tokens_per_pass": 1.864963503649635}
+{"label": "graphs-mtp3x3layers-b5120-prefillall", "kind": "prose", "task": "prose_nurse", "tokens": 512, "ttft_s": 0.41160545498132706, "decode_tps": 19.23858468854538, "tokens_per_pass": 1.9067164179104479}
+{"label": "graphs-mtp3x3layers-b5120-prefillall", "kind": "prefill", "prompt_tokens": 9534, "ttft_s": 19.085337353986688, "pp_tps": 499.5457938818392}
+{"label": "graphs-mtp3x3layers-b5120-prefillall", "kind": "prefill", "prompt_tokens": 38043, "ttft_s": 71.63539661699906, "pp_tps": 531.0642754363198}
+{"label": "graphs-mtp3-REAL3layers-b5120", "kind": "prose", "task": "prose_beekeeper", "tokens": 512, "ttft_s": 0.4450384749798104, "decode_tps": 19.05294086510763, "tokens_per_pass": 1.9}
+{"label": "graphs-mtp3-REAL3layers-b5120", "kind": "prose", "task": "prose_lighthouse", "tokens": 512, "ttft_s": 0.4473732649348676, "decode_tps": 18.495499939113774, "tokens_per_pass": 1.8315412186379927}
+{"label": "graphs-mtp3-REAL3layers-b5120", "kind": "prose", "task": "prose_nurse", "tokens": 512, "ttft_s": 0.4670089010614902, "decode_tps": 18.61746362989964, "tokens_per_pass": 1.848375451263538}
+{"label": "ABLIT-nonchain-mtp3x3-b5120", "kind": "prose", "task": "prose_beekeeper", "tokens": 512, "ttft_s": 0.4454966589109972, "decode_tps": 18.47559542320404, "tokens_per_pass": 1.8514492753623188}
+{"label": "ABLIT-nonchain-mtp3x3-b5120", "kind": "prose", "task": "prose_lighthouse", "tokens": 512, "ttft_s": 0.3846276201074943, "decode_tps": 18.72006280279971, "tokens_per_pass": 1.8717948717948718}
+{"label": "ABLIT-nonchain-mtp3x3-b5120", "kind": "prose", "task": "prose_nurse", "tokens": 512, "ttft_s": 0.4396479099523276, "decode_tps": 18.524306777618584, "tokens_per_pass": 1.8514492753623188}
+{"label": "graphs-mtp2nc-b5120-NCCLSimple", "kind": "prose", "task": "prose_beekeeper", "tokens": 512, "ttft_s": 0.46108385699335486, "decode_tps": 20.514303592913205, "tokens_per_pass": 1.8351254480286738}
+{"label": "graphs-mtp2nc-b5120-NCCLSimple", "kind": "prose", "task": "prose_lighthouse", "tokens": 512, "ttft_s": 0.4677742850035429, "decode_tps": 19.513156072676157, "tokens_per_pass": 1.741496598639456}
+{"label": "graphs-mtp2nc-b5120-NCCLSimple", "kind": "prose", "task": "prose_nurse", "tokens": 512, "ttft_s": 0.4498964619124308, "decode_tps": 21.132023493795135, "tokens_per_pass": 1.8823529411764706}
+{"label": "graphs-mtp2nc-b5120-NCCLSimple", "kind": "prefill", "prompt_tokens": 9533, "ttft_s": 18.885003985953517, "pp_tps": 504.79205654870674}
+{"label": "graphs-mtp2nc-b5120-NCCLSimple", "kind": "prefill", "prompt_tokens": 38041, "ttft_s": 72.13464331103023, "pp_tps": 527.3610328393082}
+{"label": "now-k2-conc", "kind": "prose", "task": "beekeeper", "tokens": 512, "ttft_s": 0.464, "decode_tps": 19.89, "tokens_per_pass": 1.794}
+{"label": "now-k2-conc", "kind": "prose", "task": "lighthouse", "tokens": 512, "ttft_s": 0.275, "decode_tps": 19.62, "tokens_per_pass": 1.796}
+{"label": "now-k2-conc", "kind": "prose", "task": "nurse", "tokens": 512, "ttft_s": 0.249, "decode_tps": 20.75, "tokens_per_pass": 1.869}
+{"label": "now-k2-conc", "kind": "prose_mean", "decode_tps": 20.09, "per_position_acceptance": {"0": 0.631, "1": 0.188}}
+{"label": "now-k2-conc", "kind": "concurrent", "requests": 2, "aggregate_tps": 31.09, "per_request_tps": 15.55, "wall_s": 33.2}
+{"label": "now-k2-conc", "kind": "concurrent", "requests": 4, "aggregate_tps": 42.25, "per_request_tps": 10.56, "wall_s": 48.7}

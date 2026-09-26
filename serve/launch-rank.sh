@@ -1,19 +1,21 @@
 #!/bin/bash
-# One rank of the four-Spark Abliterated champion.
+# One rank of the four-Spark Abliterated champion (image v2, 2026-09-26).
 #   launch-rank.sh <this-node-ip> <rank 0-3> <roce-gid-index> <host-checkpoint-path> [api|headless]
 #
 # HOSTPATH should be the Abliterated tree (…-ablit-dealign-op) or the gated HF download
 # drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated.
-# Always passes --enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo.
 #
-# Champion environment:
-#   LM_ONLY=1 MAXLEN=1048576 SEQS=4 \
-#   SPEC='{"method":"mtp","num_speculative_tokens":2}'
+# Champion defaults (override with env):
+#   MAXLEN=1048576 SEQS=4 BATCHED=5120 LM_ONLY=1
+#   SPEC='{"method":"mtp","num_speculative_tokens":2}'   # all three MTP heads, non-chain
+#   COMPILE=<torch.compile + FULL_AND_PIECEWISE CUDA graphs>; COMPILE=eager to disable
+# Always: --enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo and
+# a default output cap of 8192 tokens (the checkpoint's generation_config said 2048).
 #
-# Rank 0 uses mode api. The other three use headless.
+# Rank 0 uses mode api. The other three use headless. Start ranks 1-3 first.
 # GPU memory fraction is fixed at 0.85.
 set -euo pipefail
-IMAGE="${IMAGE:-mimo26-arvq-spark:63430f7-sm121-v1}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2}"
 NAME="${NAME:-mimo26-arvq-tp4}"
 PORT="${PORT:-8888}"
 MASTER="${MASTER_ADDR:?set MASTER_ADDR to the rank-0 IP}"
@@ -35,9 +37,22 @@ fi
 if [ "${LM_ONLY:-1}" = "1" ]; then
   EXTRA+=(--language-model-only)
 fi
-if [ -n "${SPEC:-}" ]; then
+# SPEC=none disables speculative decoding.
+DEFAULT_SPEC='{"method":"mtp","num_speculative_tokens":2}'
+SPEC="${SPEC:-$DEFAULT_SPEC}"
+if [ "$SPEC" != "none" ]; then
   EXTRA+=(--speculative-config "$SPEC")
 fi
+# torch.compile + CUDA graphs. Capture sizes cover MTP verify batches (k+1 per seq).
+DEFAULT_COMPILE='{"mode":3,"cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[1,2,3,4,6,8,9,12,16]}'
+COMPILE="${COMPILE:-$DEFAULT_COMPILE}"
+if [ "$COMPILE" = "eager" ]; then
+  EXTRA+=(--enforce-eager)
+else
+  EXTRA+=(--compilation-config "$COMPILE")
+fi
+
+mkdir -p /var/tmp/mimo-arvq-vllm-cache   # persisted torch.compile cache
 
 if docker ps -a --format '{{.Names}}' | grep -qx "$NAME"; then
   docker rm -f "$NAME"
@@ -49,7 +64,7 @@ exec docker run -d --name "$NAME" \
   --network host --ipc host --shm-size 16g --gpus all --privileged \
   --device /dev/infiniband:/dev/infiniband \
   -v "$HOSTPATH:$MODEL:ro" \
-  -v "$ROOT/serve/entrypoint.sh:/opt/arvq/entrypoint.sh:ro" \
+  -v /var/tmp/mimo-arvq-vllm-cache:/root/.cache/vllm \
   --entrypoint /bin/bash \
   -e VLLM_HOST_IP="$HEAD_IP" \
   -e HF_HUB_OFFLINE=1 \
@@ -81,17 +96,17 @@ exec docker run -d --name "$NAME" \
   --enable-auto-tool-choice \
   --tool-call-parser mimo \
   --reasoning-parser mimo \
+  --override-generation-config '{"max_new_tokens": 8192}' \
   --host 0.0.0.0 --port "$PORT" \
   --trust-remote-code \
   --tensor-parallel-size 4 --pipeline-parallel-size 1 \
   --distributed-executor-backend mp \
   --max-model-len "$MAXLEN" \
   --max-num-seqs "${SEQS:-4}" \
-  --max-num-batched-tokens 2048 \
+  --max-num-batched-tokens "${BATCHED:-5120}" \
   --gpu-memory-utilization "$UTIL" \
   --enable-chunked-prefill \
   --enable-prefix-caching \
-  --enforce-eager \
   --nnodes 4 --node-rank "$RANK" \
   --master-addr "$MASTER" --master-port "$MPORT" \
   "${EXTRA[@]}"

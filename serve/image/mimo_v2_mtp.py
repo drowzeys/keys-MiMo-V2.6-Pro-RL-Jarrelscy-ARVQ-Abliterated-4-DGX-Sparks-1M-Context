@@ -20,8 +20,12 @@ Checkpoint weight layout (model.mtp.layers.{idx}.*):
 
 from collections.abc import Iterable
 
+import os
+
 import torch
 import torch.nn as nn
+
+from vllm.logger import init_logger
 from transformers import PretrainedConfig
 
 from vllm.config import VllmConfig
@@ -50,7 +54,12 @@ from .utils import _merge_multimodal_embeddings, maybe_prefix
 
 # MiMo-V2 checkpoints contain multiple MTP layers, but vLLM currently supports
 # only the first layer
-_MIMO_V2_PRO_NUM_MTP_LAYERS = 1
+# The Pro checkpoint ships three MTP layers (model.mtp.layers.0-2), one per
+# draft step. MIMO_MTP_LAYERS>1 builds and loads them; the Step3.5 per-step
+# proposer then runs layer i for draft step i.
+logger = init_logger(__name__)
+
+_MIMO_V2_PRO_NUM_MTP_LAYERS = int(os.environ.get("MIMO_MTP_LAYERS", "1"))
 _MIMO_V2_FLASH_NUM_MTP_LAYERS = 1
 
 
@@ -170,9 +179,12 @@ class MiMoV2MultiTokenPredictor(nn.Module):
         config = vllm_config.model_config.hf_config
         spec_cfg = vllm_config.speculative_config
         assert spec_cfg is not None
-        num_mtp_layers = 1
+        # model_config here is the target's; n_predict lives on the draft config.
+        draft_hf = spec_cfg.draft_model_config.hf_config
+        num_mtp_layers = getattr(draft_hf, "n_predict", None) or 1
 
         self.num_mtp_layers = num_mtp_layers
+        logger.info("MiMo-V2 MTP: building %d MTP layer(s)", num_mtp_layers)
 
         self.embed_tokens = VocabParallelEmbedding(
             config.vocab_size,
@@ -392,3 +404,115 @@ class MiMoV2OmniMTP(MiMoV2MTP, SupportsMultiModal):
         )
 
         return inputs_embeds
+
+
+# ---------------------------------------------------------------------------
+# Non-chain multi-layer MTP (SGLang multi_layer_eagle semantics for MiMo-V2).
+#
+# SGLang runs MiMo MTP layer k over the whole draft-extend span with the
+# TARGET hidden states and unchanged positions; only the token ids rotate:
+# layer k sees x_{i+1+k} at position i, with layer k-1's draft appended at
+# each request's last valid slot. Every layer therefore fills its own KV for
+# the full context. The Step3.5 proposer instead chains each layer's output
+# hidden into the next and runs layers >0 on one token, which leaves their KV
+# mostly empty. This replaces propose() for MiMo-V2 drafters only.
+# ---------------------------------------------------------------------------
+def _mimo_nonchain_propose(
+    self,
+    num_speculative_tokens,
+    target_token_ids,
+    target_positions,
+    target_hidden_states,
+    next_token_ids,
+    token_indices_to_sample,
+    common_attn_metadata,
+    sampling_metadata,
+    mm_embed_inputs=None,
+    num_rejected_tokens_gpu=None,
+    slot_mappings=None,
+):
+    from vllm.forward_context import set_forward_context
+
+    self.num_speculative_tokens = num_speculative_tokens
+    self._last_draft_probs = None
+    num_tokens, token_indices_to_sample, common_attn_metadata = (
+        self.set_inputs_first_pass(
+            target_token_ids=target_token_ids,
+            next_token_ids=next_token_ids,
+            target_positions=target_positions,
+            target_hidden_states=target_hidden_states,
+            token_indices_to_sample=token_indices_to_sample,
+            cad=common_attn_metadata,
+            num_rejected_tokens_gpu=num_rejected_tokens_gpu,
+        )
+    )
+    _, per_layer_attn_metadata = self.build_per_group_and_layer_attn_metadata(
+        common_attn_metadata
+    )
+    cudagraph_runtime_mode, num_input_tokens, num_tokens_across_dp = (
+        self._determine_batch_execution_and_padding(num_tokens)
+    )
+    model_kwargs, slot_mapping_size = self.build_model_inputs_first_pass(
+        num_tokens, num_input_tokens, mm_embed_inputs
+    )
+    if model_kwargs.get("inputs_embeds") is not None:
+        raise ValueError("MiMo non-chain MTP requires token-id inputs")
+    input_ids = model_kwargs["input_ids"]
+    slot_mapping = self._get_slot_mapping(
+        slot_mapping_size, common_attn_metadata.slot_mapping
+    )
+
+    drafts, probs = [], []
+    for k in range(num_speculative_tokens):
+        model_kwargs["spec_step_idx"] = k
+        with set_forward_context(
+            per_layer_attn_metadata,
+            self.vllm_config,
+            num_tokens=num_input_tokens,
+            num_tokens_across_dp=num_tokens_across_dp,
+            cudagraph_runtime_mode=cudagraph_runtime_mode,
+            slot_mapping=slot_mapping,
+        ):
+            ret = self.model(**model_kwargs)
+        last_hidden = ret[0] if self.model_returns_tuple() else ret
+        draft, draft_probs = self._sample_draft_tokens_for_step(
+            last_hidden[token_indices_to_sample], sampling_metadata, spec_step_idx=k
+        )
+        drafts.append(draft)
+        if draft_probs is not None:
+            probs.append(draft_probs)
+        if k + 1 < num_speculative_tokens:
+            ids = input_ids[:num_tokens]
+            ids[:-1] = ids[1:].clone()
+            ids[token_indices_to_sample] = draft.to(ids.dtype)
+
+    if probs:
+        self._last_draft_probs = torch.stack(probs, dim=1).contiguous()
+    return torch.stack(drafts, dim=1)
+
+
+def _install_mimo_nonchain_propose() -> None:
+    if os.environ.get("MIMO_MTP_NONCHAIN", "1") != "1":
+        return
+    from vllm.v1.spec_decode import step3p5 as _step3p5
+
+    cls = _step3p5.Step3p5MTPProposer
+    if getattr(cls, "_mimo_nonchain_installed", False):
+        return
+    original = cls.propose
+
+    def propose(self, *args, **kwargs):
+        hf = self.vllm_config.speculative_config.draft_model_config.hf_config
+        if getattr(hf, "model_type", None) == "mimo_v2_mtp":
+            return _mimo_nonchain_propose(self, *args, **kwargs)
+        return original(self, *args, **kwargs)
+
+    cls.propose = propose
+    cls._mimo_nonchain_installed = True
+    logger.info("MiMo-V2 MTP: non-chain multi-layer propose installed")
+
+
+try:
+    _install_mimo_nonchain_propose()
+except Exception as exc:  # the API server process may lack worker modules
+    logger.warning("MiMo-V2 MTP: non-chain propose not installed: %s", exc)

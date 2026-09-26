@@ -4,6 +4,33 @@ Status: **tool parsers on the live Abliterated serve; Hermes executes writes, sh
 
 The checkpoint is the gated Abliterated tree. Thinking defaults **off** (`chat_template_kwargs.enable_thinking: false`). Turn thinking on per request when you want it.
 
+## Fixed 2026-09-26: never-ending tool-call loop
+
+**Symptom.** Hermes looped forever on bigger tasks. The model emitted a large parallel batch of tool calls (40+ `terminal`/`find` calls). Hermes ran part of it, the model started the same enumeration again, and no final answer ever came. It ended when the stream dropped.
+
+**Cause, three stacked bugs:**
+
+1. **2048-token cap.** The checkpoint's `generation_config.json` sets `max_new_tokens: 2048`. Hermes streams without `max_tokens`, so vLLM silently capped every turn at 2048 output tokens, and big tool batches were cut off mid-call.
+2. **Truncation reported as success.** `chat_completion/serving.py` returned `finish_reason: "tool_calls"` whenever any call was parsed, even when generation actually stopped on `length`.
+3. **The parser completed the cut-off call.** The `mimo` tool parser (Qwen3 engine) gives a `<function=…>` with no body valid `{}` arguments. That defeated Hermes's own guard, which looks for truncated JSON.
+
+Together these meant Hermes saw a batch that looked complete, executed the partial list, and re-prompted. The model then restarted the enumeration.
+
+**Fix (image v2 and `serve/launch-rank.sh`):**
+
+- `serving.py` keeps `finish_reason: "length"` when output was truncated, in both the streaming and non-streaming paths. Hermes then takes its "continue where you left off" path instead of executing a partial batch.
+- `--override-generation-config '{"max_new_tokens": 8192}'` raises the default cap. The HF repo's `generation_config.json` now also says 8192.
+
+Verified on the live serve:
+
+| Request | Before | After |
+|---|---|---|
+| 400 parallel calls, no `max_tokens` | `tool_calls`, cut at 2048 | `length` at 8192 (396 calls) |
+| 400 parallel calls, stream, `max_tokens` 1500 | `tool_calls` | `length` |
+| One ordinary tool call | `tool_calls` | `tool_calls` |
+
+Optional Hermes hardening: `tool_loop_guardrails.hard_stop_enabled: true`.
+
 ## What “enabled” means
 
 Two layers have to work together:

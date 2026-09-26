@@ -6,9 +6,11 @@ Gated weights (automatic approval after terms): **[drowzeys/keys-MiMo-V2.6-Pro-R
 
 The launcher enables MiMo tool calling on the server (`--enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo`). Hermes then **executes** those calls (`write_file`, `terminal`, `execute_code`, `read_file`, …) so a prompt can write a project, run it, and iterate. See [HERMES.md](HERMES.md) and [`serve/verify-tools-and-build.sh`](serve/verify-tools-and-build.sh).
 
-## Current status — 2026-09-25 UTC
+## Current status — 2026-09-26 UTC
 
-- **Serving:** live on four Sparks with 1M context, MTP=2, four sequences, eager execution, BF16 KV, and GPU memory fraction 0.85.
+- **Serving:** live on four Sparks with 1M context. MTP=2 over all three built-in heads, **CUDA graphs on**, four sequences, BF16 KV, GPU memory fraction 0.85. Image **v2**.
+- **Prose: 20.4 tok/s single-stream** (was 18.6 eager). **Prefill: ~530 tok/s** (was 128). 38K-token time to first token: **72 s** (was 302 s).
+- **✅ Tool-call loop FIXED (2026-09-26).** Hermes no longer loops forever on big tool batches. Truncated batches now return `finish_reason: "length"`, and the default output cap is 8192, up from 2048. See [HERMES.md](HERMES.md#fixed-2026-09-26-never-ending-tool-call-loop).
 - **[Hermes and tool calling](HERMES.md):** server parsers on; Hermes `hermes-cli` / `hermes-telegram` execute `write_file`, `terminal`, `execute_code`. A prompt can scaffold a file, run it, and return the program output. `tool_use_enforcement: true` so the model calls tools instead of describing them.
 - **[Abliteration](ABLITERATION.md):** live `dealign-op` tree. Thinking **off** **32/32** refusal and **22/22** cyber; thinking **on** 25/32 and 16/22 (visible content). Gated HF: [drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated](https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated).
 - **[DFlash](DFLASH.md):** measured and slower than MTP=2. MTP=2 remains the serving choice.
@@ -32,7 +34,7 @@ Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. Th
 
 ## Champion
 
-**MTP = 2** draft tokens, selected for single-stream prose. The draft is the checkpoint's own MTP stack (`model.mtp.layers.0`, `.1`, and `.2`). The fork as published loads one MTP layer and replays it, so "2" here means two speculative steps on that built-in head, not a second downloaded drafter.
+**MTP = 2** draft tokens, selected for single-stream prose. The draft is the checkpoint's own MTP stack (`model.mtp.layers.0`, `.1`, `.2`). Image v2 loads **all three heads** and runs them non-chain, the way Xiaomi's SGLang deploy does. The published fork loaded one head and replayed it. See [SPARK-PORT.md §6](SPARK-PORT.md#6-all-three-mtp-heads-non-chain-2026-09-26).
 
 | | |
 |---|---|
@@ -40,44 +42,59 @@ Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. Th
 | Context | `1048576` |
 | KV | BF16 (`--kv-cache-dtype` left at auto). FP8 KV is not used |
 | GPU memory fraction | **0.85** (do not raise this on GB10) |
-| Scheduler | `max-num-seqs 4`, `max-num-batched-tokens 2048`, chunked prefill, prefix caching |
-| Execution | eager. CUDA graphs are off |
+| Scheduler | `max-num-seqs 4`, `max-num-batched-tokens 5120`, chunked prefill, prefix caching |
+| Execution | torch.compile + CUDA graphs (`FULL_AND_PIECEWISE`). Compile cache persisted in `/var/tmp/mimo-arvq-vllm-cache` |
+| ARVQ prefill | grouped + compact + sorted-native prefill, fused decode activation pack (image defaults) |
 | Modalities | `--language-model-only` so the startup profile does not spend the KV budget on a video |
 | Draft | `--speculative-config '{"method":"mtp","num_speculative_tokens":2}'` |
 | Served name | `MiMo-V2.6-Pro-ARVQ` |
 | Tool calls | `--enable-auto-tool-choice --tool-call-parser mimo --reasoning-parser mimo` (required; without these Hermes `tool_choice: auto` is HTTP 400) |
+| Output cap | `--override-generation-config '{"max_new_tokens": 8192}'` (the checkpoint default of 2048 caused the tool loop) |
 | Checkpoint | abliterated tree `…-ablit-dealign-op` / gated HF repo above |
 
-Measured KV pool on the champion boot: **2,248,773 tokens**. Weights about **73.2 GiB per rank**.
+Measured KV pool on the champion boot: about **2.07M tokens** (three MTP heads now hold KV). Weights about **73.2 GiB per rank**.
 
-### Prose, 33K-token prompt, 512 new tokens, temperature 1.0
+### Speed, current champion (2026-09-26)
 
-Single-stream mean of three stories (beekeeper, lighthouse, nurse):
+Prose: 512 new tokens, temperature 1.0, top_p 0.95, thinking off. Single-stream mean of three stories (beekeeper, lighthouse, nurse), short prompt. Reproduce with [`serve/bench/speedbench.py`](serve/bench/speedbench.py).
 
 | Draft tokens | Decode | Tokens per pass |
 |---:|---:|---:|
-| 1 | 17.4 tok/s | 1.58 |
-| **2** | **18.6 tok/s** | **1.89** |
-| 3 | 16.1 tok/s | 1.84 |
+| **2 (champion)** | **20.4 tok/s** | **1.82** |
+| 3 | 18.6 tok/s | 1.86 |
 
-Same prompt, requests actually overlapped (`max_num_seqs 4`):
+Requests overlapped (`max_num_seqs 4`), MTP=2:
 
-| Requests | 1 draft token | 2 draft tokens | 3 draft tokens |
+| Requests | Aggregate | Per request |
+|---:|---:|---:|
+| 1 | 20.4 tok/s | 20.4 tok/s |
+| 2 | 31.1 tok/s | 15.6 tok/s |
+| 4 | 42.3 tok/s | 10.6 tok/s |
+
+Uncached prefill (nonce prompt, `max_tokens` 1):
+
+| Prompt | Before (eager, chunk 2048) | Now | Time to first token, now |
 |---:|---:|---:|---:|
-| 2 | 29.6 tok/s | 27.9 tok/s | 23.4 tok/s |
-| 4 | **45.0 tok/s** | 39.1 tok/s | 33.1 tok/s |
+| 9.5K tokens | 128 tok/s | **505 tok/s** | 18.9 s |
+| 38K tokens | 126 tok/s | **527 tok/s** | 72.1 s |
 
-MTP=2 is the single-stream champion. MTP=1 is faster when four requests run together. A short prompt with one draft token, measured earlier on the eager server, was 24.5 tok/s. The 33K numbers above are the loaded figure.
+MTP acceptance per draft position (sampled prose): 0.63 / 0.19. Heads 1-2 lost accuracy on this target because ARVQ quantization and the abliteration moved the hidden state they read. On-policy fine-tuning of the heads is in progress.
 
 ## Image
 
-The Spark image is at:
+`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2` (public, no login needed)
 
-`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v1`
+Digest `sha256:a7a05c898ea97659d8259e162b61b9e6bfd7e2eae814944556ecb04f68eff8a9`.
 
-Digest `sha256:83c6bdd58e4d99521b2e4f2060225a34678b46fa8d069d1adcea9d4389fefe9e`.
+Jarrelscy's fork compiled for GB10 (`sm_121a`), plus every fix in [`serve/image/`](serve/image/):
 
-It is Jarrelscy's fork compiled for GB10 (`sm_121a`), plus the Python fixes in [`serve/image/`](serve/image/). Those fixes were bind-mounted on the first successful serve and are now inside this tag. The image does not contain the weights. The package is private on push. Make it public once at [package settings](https://github.com/users/drowzeys/packages/container/package/mimo-v26-pro-arvq-spark/settings), or pull it with `gh auth token` while it stays private. Then run `serve/launch-rank.sh` with `IMAGE` set to that tag.
+- the Spark loader fixes
+- three-head non-chain MTP
+- the tool-loop `serving.py` fix
+- the torch.compile-clean ablit hooks
+- ARVQ prefill defaults
+
+The image does not contain the weights. v1 (`…-sm121-v1`, eager, one MTP head, tool-loop bug) is superseded.
 
 ## Bring-up
 
@@ -90,7 +107,7 @@ export LM_ONLY=1
 export MAXLEN=1048576
 export SEQS=4
 export SPEC='{"method":"mtp","num_speculative_tokens":2}'
-export IMAGE=ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v1
+export IMAGE=ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2   # the default
 export MASTER_ADDR=10.0.0.1   # rank 0
 export HOSTPATH=/path/to/MiMo-V2.6-Pro-RL-ARVQ-hybrid-ablit-dealign-op
 # or: hf download drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated --local-dir "$HOSTPATH"
@@ -106,7 +123,7 @@ NCCL on this cluster used the 200G RoCE NIC (`NCCL_NET=IB`), not the TCP path on
 ## Integration and experiments
 
 - **[Hermes](HERMES.md)** — parsers, Hermes execution, and build-from-prompt (`write_file` + `terminal`).
-- **[DFlash](DFLASH.md)** — measured. 13.0 tok/s single-stream prose, 22.5 tok/s at four requests. Slower than MTP=2. Not the champion.
+- **[DFlash](DFLASH.md)** — measured on the old eager build. 13.0 tok/s single-stream prose, 22.5 tok/s at four requests. Slower than MTP. Not the champion.
 - **[Abliteration](ABLITERATION.md)** — live dealign-op: thinking-off 32/32 · 22/22; thinking-on 25/32 · 16/22.
 
 ## Build from a prompt

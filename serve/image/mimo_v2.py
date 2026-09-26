@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 from collections.abc import Iterable
 from itertools import islice
+import os
 
 import torch
 from torch import nn
@@ -352,9 +353,83 @@ class MiMoV2Attention(nn.Module):
             v = v * self.v_scale
 
         attn_output = self.attn(q, k, v)
+        _mimo_ablit_capture_attn(self, attn_output, positions)
 
         output, _ = self.o_proj(attn_output)
         return output
+
+
+# File-gated last-token residual dump for o_proj abliteration.
+# No-op unless /state/ablit-cap/TAG exists. Prefill only (positions >= 16).
+# Read once at import: a per-forward open() costs 140 syscalls per step and
+# graph-breaks torch.compile. Set MIMO_ABLIT_CAPTURE=1 to re-enable capture.
+_ABLIT_CAPTURE = os.environ.get("MIMO_ABLIT_CAPTURE", "0") == "1"
+_CAP_BUFS: dict[int, list[torch.Tensor]] = {}
+_CAP_TAG: str | None = None
+
+
+def _mimo_ablit_capture(layer, residual, positions) -> None:
+    if not _ABLIT_CAPTURE:
+        return
+    cap_dir = os.environ.get("MIMO_ABLIT_CAP_DIR", "/state/ablit-cap")
+    try:
+        with open(os.path.join(cap_dir, "TAG")) as handle:
+            tag = handle.read().strip()
+    except OSError:
+        return
+    if not tag or os.environ.get("MIMO_ABLIT_RANK", "0") != "0":
+        return
+    ntok = int(positions.numel()) if positions is not None else 0
+    if ntok < 16:
+        return
+    x = residual.detach()
+    vec = x.reshape(-1, x.shape[-1])[-1].float().cpu().contiguous()
+    lid = int(getattr(layer, "layer_id", -1))
+    global _CAP_TAG, _CAP_BUFS
+    if _CAP_TAG != tag:
+        _CAP_BUFS = {}
+        _CAP_TAG = tag
+    _CAP_BUFS.setdefault(lid, []).append(vec)
+    out_dir = os.path.join(cap_dir, tag)
+    os.makedirs(out_dir, exist_ok=True)
+    torch.save(torch.stack(_CAP_BUFS[lid], 0), os.path.join(out_dir, f"layer_{lid:02d}.pt"))
+
+
+_CAP_ATTN: dict[int, list[torch.Tensor]] = {}
+_CAP_ATTN_TAG: str | None = None
+
+
+def _mimo_ablit_capture_attn(attn, attn_output, positions) -> None:
+    """Last-token attention output (TP-sharded). Used to find refusal heads."""
+    if not _ABLIT_CAPTURE:
+        return
+    cap_dir = os.environ.get("MIMO_ABLIT_CAP_DIR", "/state/ablit-cap")
+    try:
+        with open(os.path.join(cap_dir, "TAG")) as handle:
+            tag = handle.read().strip()
+    except OSError:
+        return
+    if not tag:
+        return
+    ntok = int(positions.numel()) if positions is not None else 0
+    if ntok < 16:
+        return
+    x = attn_output.detach()
+    vec = x.reshape(-1, x.shape[-1])[-1].float().cpu().contiguous()
+    lid = int(getattr(attn, "layer_id", -1))
+    rank = os.environ.get("MIMO_ABLIT_RANK", "0")
+    global _CAP_ATTN, _CAP_ATTN_TAG
+    key_tag = f"{tag}:{rank}"
+    if _CAP_ATTN_TAG != key_tag:
+        _CAP_ATTN = {}
+        _CAP_ATTN_TAG = key_tag
+    _CAP_ATTN.setdefault(lid, []).append(vec)
+    out_dir = os.path.join(cap_dir, tag)
+    os.makedirs(out_dir, exist_ok=True)
+    torch.save(
+        torch.stack(_CAP_ATTN[lid], 0),
+        os.path.join(out_dir, f"rank{rank}_attn_{lid:02d}.pt"),
+    )
 
 
 class MiMoV2FlashDecoderLayer(nn.Module):
@@ -450,6 +525,7 @@ class MiMoV2FlashDecoderLayer(nn.Module):
 
         hidden_states, residual = self.post_attention_layernorm(hidden_states, residual)
         hidden_states = self.mlp(hidden_states)
+        _mimo_ablit_capture(self, residual if residual is not None else hidden_states, positions)
         return hidden_states, residual
 
     def is_moe_layer(self, layer_idx: int) -> bool:
