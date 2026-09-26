@@ -1,0 +1,15 @@
+# v3: v2 + expert-batched ARVQ prefill (cold codebook + hot NVFP4 routes).
+# Two CUDA kernels (gate/up, down) decode ARVQ/NVFP4 weights in registers and
+# run FP16 tensor-core GEMMs over token-sorted routes; replaces the per-expert
+# grouped prefill loop. Engages for chunks >= 32 tokens outside CUDA-graph
+# capture, so decode and MTP steps keep the native kernels.
+FROM ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2
+
+ARG Q=/opt/arvq/runtime/vllm/model_executor/layers/quantization
+COPY grouped.cu build_grouped.sh /tmp/grouped/
+RUN NVCC=/usr/local/cuda/bin/nvcc ARVQ_CUDA_ARCH=121a bash /tmp/grouped/build_grouped.sh \
+    && cp /tmp/grouped/grouped.so $Q/arvq/grouped.so && rm -rf /tmp/grouped
+COPY nvfp4_arvq_hybrid.py $Q/nvfp4_arvq_hybrid.py
+COPY nvfp4_arvq_batched_prefill.py $Q/nvfp4_arvq_batched_prefill.py
+
+ENV VLLM_ARVQ_BATCHED_PREFILL=1

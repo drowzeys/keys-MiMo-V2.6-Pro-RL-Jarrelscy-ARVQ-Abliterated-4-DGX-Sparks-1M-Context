@@ -57,3 +57,30 @@ Heads 1-2 are weak on both trees. ARVQ quantization and the `o_proj` edits moved
 - **ARVQ prefill.** By default, prefill ran through the per-slot decode kernel, at 128 tok/s. `VLLM_ARVQ_GROUPED_PREFILL=1`, `_COMPACT_PREFILL=1` and `_SORT_NATIVE_PREFILL=1`, plus `--max-num-batched-tokens 5120`, give about 530 tok/s. 5120 is the largest chunk that stays under the grouped path's 1 GiB FP32 output bound. All four knobs are defaults in image v2.
 - **Sliding window** is working on the 60 SWA layers (window 128), in both the KV cache (only the 10 full-attention layers hold per-token KV) and the Triton DiffKV kernel.
 - **All-reduce** is PyNCCL over RoCE. It is about half of each decode pass. `NCCL_PROTO=Simple` changed nothing.
+
+## 8. Expert-batched ARVQ prefill (image v3, 2026-09-26)
+
+Profile of an 11K-token prefill on v2 (rank 0, 24.4 s of GPU time):
+- **Native `hybrid_kernel` on hot routes: 7.1 s.** It runs 4 FP4 activation planes.
+- **The grouped cold path: about 9.5 s.** It is a per-expert loop of about 43K dequant launches and 43K matmuls, and the CPU was launch-bound ("Command Buffer Full").
+- **NCCL all-reduce: 4.5 s.**
+
+v3 adds `nvfp4_arvq_batched_prefill.py` and `grouped.cu`:
+
+- **Two kernels.** One gate/up and one down GEMM kernel covers all routes, cold (ARVQ 8+8 codebook, decoded in registers from a shared-memory LUT with the hardware FP4 convert) and hot (NVFP4).
+- **Arithmetic.** FP16 tensor cores with FP32 accumulation. The down projection adds into an FP32 output with vector atomics. The grid is sliced into 512 columns for L2 reuse.
+- **Gate.** `arvq_mlp` takes this path when `VLLM_ARVQ_BATCHED_PREFILL=1`, the chunk has at least `VLLM_ARVQ_BATCHED_MIN_TOKENS` tokens (default 32), and the stream is not capturing a CUDA graph. Decode and MTP steps keep the native kernels.
+- **mcbook16 (v5) layers** are rejected by `supported()` and use the old paths. This checkpoint is v4 throughout.
+
+Harness, per MoE layer on one TP4 rank:
+
+| Layer | Tokens | Native | v2 grouped | v3 batched |
+|---|---:|---:|---:|---:|
+| 30 (all cold) | 5120 | 489 ms | 90 ms | 18.2 ms |
+| 64 (291 cold, 93 hot) | 5120 | 623 ms | 147 ms | 18.9 ms |
+
+Accuracy of the batched path:
+- Cosine vs native is 0.9999996. Relative Frobenius error vs an FP32 reference is 1.709e-3, compared with 1.717e-3 for native, 1.735e-3 for grouped, and a 1.658e-3 bf16 floor.
+- Greedy outputs on the cluster drift from v2 at tokens 31-53. That matches run-to-run drift within one boot (tokens 53-58), which comes from FP32 atomics and NCCL.
+
+Cluster result: 9.5K-token prefill goes from 505 to 1,291 tok/s, and 38K-token from 527 to 1,038 tok/s. All-reduce is now the largest prefill cost.

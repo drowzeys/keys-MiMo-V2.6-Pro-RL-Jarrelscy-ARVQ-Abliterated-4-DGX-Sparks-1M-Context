@@ -36,3 +36,22 @@
 {"label": "now-k2-conc", "kind": "prose_mean", "decode_tps": 20.09, "per_position_acceptance": {"0": 0.631, "1": 0.188}}
 {"label": "now-k2-conc", "kind": "concurrent", "requests": 2, "aggregate_tps": 31.09, "per_request_tps": 15.55, "wall_s": 33.2}
 {"label": "now-k2-conc", "kind": "concurrent", "requests": 4, "aggregate_tps": 42.25, "per_request_tps": 10.56, "wall_s": 48.7}
+{"label": "v2-oneshot-ghcr", "kind": "prose", "task": "beekeeper", "tokens": 512, "ttft_s": 0.402, "decode_tps": 21.51, "tokens_per_pass": 1.835}
+{"label": "v2-oneshot-ghcr", "kind": "prose", "task": "lighthouse", "tokens": 512, "ttft_s": 0.456, "decode_tps": 20.28, "tokens_per_pass": 1.741}
+{"label": "v2-oneshot-ghcr", "kind": "prose", "task": "nurse", "tokens": 512, "ttft_s": 0.406, "decode_tps": 22.14, "tokens_per_pass": 1.9}
+{"label": "v2-oneshot-ghcr", "kind": "prose_mean", "decode_tps": 21.31, "per_position_acceptance": {"0": 0.608, "1": 0.215}}
+{"label": "v2-oneshot-ghcr", "kind": "prefill", "prompt_tokens": 38040, "ttft_s": 70.86, "prefill_tps": 536.8}
+{"label": "v3rc-batched-b5120", "kind": "prose", "task": "beekeeper", "tokens": 512, "ttft_s": 0.54, "decode_tps": 19.91, "tokens_per_pass": 1.721}
+{"label": "v3rc-batched-b5120", "kind": "prose", "task": "lighthouse", "tokens": 512, "ttft_s": 0.474, "decode_tps": 21.1, "tokens_per_pass": 1.829}
+{"label": "v3rc-batched-b5120", "kind": "prose", "task": "nurse", "tokens": 512, "ttft_s": 0.486, "decode_tps": 20.99, "tokens_per_pass": 1.826}
+{"label": "v3rc-batched-b5120", "kind": "prose_mean", "decode_tps": 20.67, "per_position_acceptance": {"0": 0.589, "1": 0.202}}
+{"label": "v3rc-batched-b5120", "kind": "concurrent", "requests": 2, "aggregate_tps": 31.08, "per_request_tps": 15.54, "wall_s": 33.3}
+{"label": "v3rc-batched-b5120", "kind": "concurrent", "requests": 4, "aggregate_tps": 43.48, "per_request_tps": 10.87, "wall_s": 47.4}
+{"label": "v3rc-batched-b5120", "kind": "prefill", "prompt_tokens": 9536, "ttft_s": 7.39, "prefill_tps": 1291.3}
+{"label": "v3rc-batched-b5120", "kind": "prefill", "prompt_tokens": 38045, "ttft_s": 36.64, "prefill_tps": 1038.3}
+{"label": "v3rc-batched-b5120", "kind": "prefill", "prompt_tokens": 152069, "ttft_s": 247.35, "prefill_tps": 614.8}
+{"label": "v3-ghcr-oneshot", "kind": "prose", "task": "beekeeper", "tokens": 512, "ttft_s": 0.528, "decode_tps": 20.13, "tokens_per_pass": 1.726}
+{"label": "v3-ghcr-oneshot", "kind": "prose", "task": "lighthouse", "tokens": 512, "ttft_s": 0.48, "decode_tps": 21.62, "tokens_per_pass": 1.851}
+{"label": "v3-ghcr-oneshot", "kind": "prose", "task": "nurse", "tokens": 512, "ttft_s": 0.516, "decode_tps": 20.56, "tokens_per_pass": 1.772}
+{"label": "v3-ghcr-oneshot", "kind": "prose_mean", "decode_tps": 20.77, "per_position_acceptance": {"0": 0.589, "1": 0.193}}
+{"label": "v3-ghcr-oneshot", "kind": "prefill", "prompt_tokens": 38043, "ttft_s": 37.48, "prefill_tps": 1014.9}

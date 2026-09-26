@@ -1,5 +1,5 @@
 #!/bin/bash
-# One rank of the four-Spark Abliterated champion (image v2, 2026-09-26).
+# One rank of the four-Spark Abliterated champion (image v3, 2026-09-26).
 #   launch-rank.sh <this-node-ip> <rank 0-3> <roce-gid-index> <host-checkpoint-path> [api|headless]
 #
 # HOSTPATH should be the Abliterated tree (…-ablit-dealign-op) or the gated HF download
@@ -15,7 +15,7 @@
 # Rank 0 uses mode api. The other three use headless. Start ranks 1-3 first.
 # GPU memory fraction is fixed at 0.85.
 set -euo pipefail
-IMAGE="${IMAGE:-ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2}"
+IMAGE="${IMAGE:-ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v3}"
 NAME="${NAME:-mimo26-arvq-tp4}"
 PORT="${PORT:-8888}"
 MASTER="${MASTER_ADDR:?set MASTER_ADDR to the rank-0 IP}"

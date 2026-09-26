@@ -8,8 +8,8 @@ The launcher enables MiMo tool calling on the server (`--enable-auto-tool-choice
 
 ## Current status — 2026-09-26 UTC
 
-- **Serving:** live on four Sparks with 1M context. MTP=2 over all three built-in heads, **CUDA graphs on**, four sequences, BF16 KV, GPU memory fraction 0.85. Image **v2**.
-- **Prose: 20.4 tok/s single-stream** (was 18.6 eager). **Prefill: ~530 tok/s** (was 128). 38K-token time to first token: **72 s** (was 302 s).
+- **Serving:** live on four Sparks with 1M context. MTP=2 over all three built-in heads, **CUDA graphs on**, four sequences, BF16 KV, GPU memory fraction 0.85. Image **v3**.
+- **Prose: 20.4–20.8 tok/s single-stream** (was 18.6 eager). **Prefill: 1,038–1,291 tok/s** (was 128). 38K-token time to first token: **36.6 s** (was 302 s). The prefill gain comes from new batched ARVQ expert kernels in image v3.
 - **✅ Tool-call loop FIXED (2026-09-26).** Hermes no longer loops forever on big tool batches. Truncated batches now return `finish_reason: "length"`, and the default output cap is 8192, up from 2048. See [HERMES.md](HERMES.md#fixed-2026-09-26-never-ending-tool-call-loop).
 - **[Hermes and tool calling](HERMES.md):** server parsers on; Hermes `hermes-cli` / `hermes-telegram` execute `write_file`, `terminal`, `execute_code`. A prompt can scaffold a file, run it, and return the program output. `tool_use_enforcement: true` so the model calls tools instead of describing them.
 - **[Abliteration](ABLITERATION.md):** live `dealign-op` tree. Thinking **off** **32/32** refusal and **22/22** cyber; thinking **on** 25/32 and 16/22 (visible content). Gated HF: [drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated](https://huggingface.co/drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated).
@@ -44,7 +44,7 @@ Jarrelscy marks full-model quality and SM120 / 1M serving as **unqualified**. Th
 | GPU memory fraction | **0.85** (do not raise this on GB10) |
 | Scheduler | `max-num-seqs 4`, `max-num-batched-tokens 5120`, chunked prefill, prefix caching |
 | Execution | torch.compile + CUDA graphs (`FULL_AND_PIECEWISE`). Compile cache persisted in `/var/tmp/mimo-arvq-vllm-cache` |
-| ARVQ prefill | grouped + compact + sorted-native prefill, fused decode activation pack (image defaults) |
+| ARVQ prefill | **expert-batched CUDA prefill** (v3: `VLLM_ARVQ_BATCHED_PREFILL=1`, chunks ≥32 tokens), fused decode activation pack (image defaults) |
 | Modalities | `--language-model-only` so the startup profile does not spend the KV budget on a video |
 | Draft | `--speculative-config '{"method":"mtp","num_speculative_tokens":2}'` |
 | Served name | `MiMo-V2.6-Pro-ARVQ` |
@@ -69,32 +69,40 @@ Requests overlapped (`max_num_seqs 4`), MTP=2:
 |---:|---:|---:|
 | 1 | 20.4 tok/s | 20.4 tok/s |
 | 2 | 31.1 tok/s | 15.6 tok/s |
-| 4 | 42.3 tok/s | 10.6 tok/s |
+| 4 | 43.5 tok/s | 10.9 tok/s |
 
 Uncached prefill (nonce prompt, `max_tokens` 1):
 
-| Prompt | Before (eager, chunk 2048) | Now | Time to first token, now |
-|---:|---:|---:|---:|
-| 9.5K tokens | 128 tok/s | **505 tok/s** | 18.9 s |
-| 38K tokens | 126 tok/s | **527 tok/s** | 72.1 s |
+| Prompt | Eager, chunk 2048 | v2 (grouped prefill) | **v3 (batched prefill)** | Time to first token, v3 |
+|---:|---:|---:|---:|---:|
+| 9.5K tokens | 128 tok/s | 505 tok/s | **1,291 tok/s** | **7.4 s** |
+| 38K tokens | 126 tok/s | 527 tok/s | **1,038 tok/s** | **36.6 s** |
+| 152K tokens | — | — | 615 tok/s | 247 s |
+
+Prefill slows as prompts grow because the 10 full-attention layers grow with context length. Decode is unchanged by v3.
 
 MTP acceptance per draft position (sampled prose): 0.63 / 0.19. Heads 1-2 lost accuracy on this target because ARVQ quantization and the abliteration moved the hidden state they read. On-policy fine-tuning of the heads is in progress.
 
 ## Image
 
-`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2` (public, no login needed)
+`ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v3` (public, no login needed). `serve/launch-rank.sh` uses it by default.
 
-Digest `sha256:a7a05c898ea97659d8259e162b61b9e6bfd7e2eae814944556ecb04f68eff8a9`.
+Digest `sha256:52cbb3b3b3bc902fa4bc5f4f59b5e82b660da9629d87ebc662add8319d4aca84`.
 
-Jarrelscy's fork compiled for GB10 (`sm_121a`), plus every fix in [`serve/image/`](serve/image/):
+v3 = v2 + **expert-batched ARVQ prefill** ([`serve/image/Dockerfile.v3`](serve/image/Dockerfile.v3), kernels built from [`grouped.cu`](serve/image/grouped.cu) at image build):
+
+- Two CUDA kernels (gate/up and down) decode ARVQ codebook and NVFP4 weights in registers and run FP16 tensor-core GEMMs over token-sorted routes.
+- They replace a per-expert launch loop of about 43K launches per prefill.
+- Per MoE layer at 5120 tokens: 146.8 ms → 18.9 ms. Output cosine vs native is 0.9999996, with error slightly below the old grouped path.
+
+v2 (`…-sm121-v2`, [`serve/image/Dockerfile`](serve/image/Dockerfile)) contains:
 
 - the Spark loader fixes
 - three-head non-chain MTP
 - the tool-loop `serving.py` fix
 - the torch.compile-clean ablit hooks
-- ARVQ prefill defaults
 
-The image does not contain the weights. v1 (`…-sm121-v1`, eager, one MTP head, tool-loop bug) is superseded.
+The image does not contain the weights. v1 (eager, one MTP head, tool-loop bug) is superseded.
 
 ## Bring-up
 
@@ -107,7 +115,7 @@ export LM_ONLY=1
 export MAXLEN=1048576
 export SEQS=4
 export SPEC='{"method":"mtp","num_speculative_tokens":2}'
-export IMAGE=ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v2   # the default
+export IMAGE=ghcr.io/drowzeys/mimo-v26-pro-arvq-spark:63430f7-sm121-v3   # the default
 export MASTER_ADDR=10.0.0.1   # rank 0
 export HOSTPATH=/path/to/MiMo-V2.6-Pro-RL-ARVQ-hybrid-ablit-dealign-op
 # or: hf download drowzeys/keys-MiMo-V2.6-Pro-RL-Jarrelscy-ARVQ-Abliterated --local-dir "$HOSTPATH"

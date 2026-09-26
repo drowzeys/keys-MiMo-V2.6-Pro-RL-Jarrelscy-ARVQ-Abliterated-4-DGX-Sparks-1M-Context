@@ -215,6 +215,27 @@ def _grouped_prefill_enabled(num_tokens: int, top_k: int, hidden: int) -> bool:
     return mode == "1" or Path("/dev/shm/vllm_arvq_grouped_prefill_on").exists()
 
 
+def _batched_prefill_enabled(num_tokens: int, tensors) -> bool:
+    """Expert-batched cold+hot prefill (nvfp4_arvq_batched_prefill).
+
+    Mode ``1`` engages at >= VLLM_ARVQ_BATCHED_MIN_TOKENS tokens (default 32;
+    measured eager crossover vs the native P4 path is ~16) and never during
+    CUDA-graph capture, so captured decode/MTP graphs keep the native kernels.
+    mcbook16 layers are rejected by ``supported`` and keep the existing paths.
+    """
+    if os.environ.get("VLLM_ARVQ_BATCHED_PREFILL", "0") != "1":
+        return False
+    if num_tokens < int(os.environ.get("VLLM_ARVQ_BATCHED_MIN_TOKENS", "32")):
+        return False
+    if torch.cuda.is_current_stream_capturing():
+        return False
+    from vllm.model_executor.layers.quantization.nvfp4_arvq_batched_prefill import (
+        supported,
+    )
+
+    return supported(tensors)
+
+
 @torch.library.custom_op("arvq_hybrid::mlp", mutates_args=())
 def arvq_mlp(
     x: torch.Tensor,
@@ -227,6 +248,12 @@ def arvq_mlp(
 ) -> torch.Tensor:
     """Opaque graph-safe P4 pack, unified projection, SiLU and route combine."""
     reference_weights = os.environ.get("VLLM_ARVQ_REFERENCE_WEIGHTS", "0") == "1"
+    if not reference_weights and _batched_prefill_enabled(x.shape[0], tensors):
+        from vllm.model_executor.layers.quantization.nvfp4_arvq_batched_prefill import (
+            batched_prefill,
+        )
+
+        return batched_prefill(x, topk_weights, topk_ids, lookups, tensors, alphas)
     if not reference_weights and _grouped_prefill_enabled(
         x.shape[0], topk_ids.shape[1], x.shape[1]
     ):
